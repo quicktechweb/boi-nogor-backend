@@ -223,49 +223,37 @@ router.post("/login", async (req, res) => {
         { phoneNumber: identifier },
         { email: identifier },
         { uid: identifier },
+        { displayName: identifier }, // ← এইটা add করো
       ],
     });
 
     if (!user) {
-      return res.status(400).json({
-        success: false,
-        message: "User not found",
-      });
+      return res.status(400).json({ success: false, message: "User not found" });
     }
 
     if (user.status === "blocked") {
-      return res.status(403).json({
-        success: false,
-        message: "Account blocked",
-      });
+      return res.status(403).json({ success: false, message: "Account blocked" });
     }
 
     const isMatch = await user.comparePassword(password);
 
     if (!isMatch) {
-      return res.status(400).json({
-        success: false,
-        message: "Wrong password",
-      });
+      return res.status(400).json({ success: false, message: "Wrong password" });
     }
 
-    // ✅ No token, direct response
     return res.json({
       success: true,
       user: {
         _id: user._id,
         displayName: user.displayName,
         phoneNumber: user.phoneNumber,
-        role: user.newpartroles,
+        newpartroles: user.newpartroles, // ← role → newpartroles করো
       },
     });
 
   } catch (err) {
     console.error("Login error:", err);
-    res.status(500).json({
-      success: false,
-      message: "Server error",
-    });
+    res.status(500).json({ success: false, message: "Server error" });
   }
 });
 
