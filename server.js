@@ -37,6 +37,8 @@ import  wishlistRoutes from "./routes/wishlistRoute.js";
 import  navbarCategoryRoutes from "./routes/navbarcategory.js";
 import bannerAdvertisementRoute from "./routes/bannerAdvertisementRoute.js";
 import  fs from "fs";
+import dns from "dns";
+
 import  multer from "multer";
 import campaignRoutes from "./routes/campaignRoutes.js";
 import winnerRoutes from "./routes/winnerRoutes.js";
@@ -48,6 +50,8 @@ import gtmRoutes from "./routes/gtmRoutes.js";
 // dotenv.config();
 // CommonJS style JSON load
 import "./firebase-admin.js";
+dns.setServers(["8.8.8.8", "8.8.4.4"]);
+
 
 dotenv.config();
 const app = express();
@@ -287,7 +291,7 @@ app.use((err, req, res, next) => {
 
 
 // Server Start
-const PORT = 50000;
+const PORT = 5000;
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log("🌍 BKASH_BASE_URL =", process.env.BKASH_BASE_URL);
