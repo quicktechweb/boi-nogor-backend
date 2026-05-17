@@ -2,6 +2,7 @@ import express from "express";
 import dotenv from "dotenv";
 import cors from "cors";
 import axios from "axios";
+import FormData from "form-data";
 import connectDB from "./config/db.js";
 import categoryRoutes from "./routes/categoryRoutes.js";
 import subcategoryRoutes from "./routes/subcategoryRoutes.js";
@@ -220,73 +221,154 @@ app.post("/api/fraudcheck", async (req, res) => {
 });
 
 
-const UPLOAD_DIR = "/home/virtualshopbd/public_html/demo";
+// const UPLOAD_DIR = "/home/virtualshopbd/public_html/demo";
 
-// Create folder if missing
-if (!fs.existsSync(UPLOAD_DIR)) {
-  fs.mkdirSync(UPLOAD_DIR, { recursive: true });
-}
+// // Create folder if missing
+// if (!fs.existsSync(UPLOAD_DIR)) {
+//   fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+// }
 
-// Serve uploaded files
-app.use("/demo", express.static(UPLOAD_DIR));
+// // Serve uploaded files
+// app.use("/demo", express.static(UPLOAD_DIR));
 
-// Multer storage
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, UPLOAD_DIR),
-  filename: (req, file, cb) => {
-    const safeName = file.originalname.replace(/\s+/g, "_");
-    cb(null, Date.now() + "_" + safeName); // unique filename
-  },
-});
+// // Multer storage
+// const storage = multer.diskStorage({
+//   destination: (req, file, cb) => cb(null, UPLOAD_DIR),
+//   filename: (req, file, cb) => {
+//     const safeName = file.originalname.replace(/\s+/g, "_");
+//     cb(null, Date.now() + "_" + safeName); // unique filename
+//   },
+// });
 
-// Only images allowed
+// // Only images allowed
+// const fileFilter = (req, file, cb) => {
+//   if (file.mimetype.startsWith("image/")) cb(null, true);
+//   else cb(new Error("Only image files are allowed!"), false);
+// };
+
+// // Multer setup: 1MB max size
+// const upload = multer({
+//   storage,
+//   fileFilter,
+//   limits: { fileSize: 1 * 1024 * 1024 }, // 1MB
+// });
+
+// // Upload endpoint
+// app.post("/upload", upload.single("image"), (req, res) => {
+//   if (!req.file) {
+//     return res.status(400).json({
+//       success: false,
+//       message: "No file uploaded or invalid file type",
+//     });
+//   }
+
+//   const fileUrl = `https://virtualshopbd.com/demo/${req.file.filename}`;
+
+//   res.status(200).json({
+//     success: true,
+//     message: "Image uploaded successfully",
+//     url: fileUrl,
+//   });
+// });
+
+// // Error handler for large files
+// app.use((err, req, res, next) => {
+//   if (err instanceof multer.MulterError && err.code === "LIMIT_FILE_SIZE") {
+//     return res.status(400).json({
+//       success: false,
+//       message: "আপনার ফাইল 1MB এর চেয়ে বড়। দয়া করে ছোট ফাইল আপলোড করুন।",
+//     });
+//   }
+
+//   if (err) {
+//     return res.status(400).json({
+//       success: false,
+//       message: err.message,
+//     });
+//   }
+
+//   next();
+// });
+
+const image_hosting_key = "fbd130b7af87b9ab6a20ba42f497c6e3";
+const image_hosting_api = `https://api.imgbb.com/1/upload?key=${image_hosting_key}`;
+
+// Multer memory storage
+const storage = multer.memoryStorage();
+
 const fileFilter = (req, file, cb) => {
-  if (file.mimetype.startsWith("image/")) cb(null, true);
-  else cb(new Error("Only image files are allowed!"), false);
+  if (file.mimetype.startsWith("image/")) {
+    cb(null, true);
+  } else {
+    cb(new Error("Only image files are allowed!"), false);
+  }
 };
 
-// Multer setup: 1MB max size
 const upload = multer({
   storage,
   fileFilter,
-  limits: { fileSize: 1 * 1024 * 1024 }, // 1MB
+  limits: {
+    fileSize: 5 * 1024 * 1024, // 5MB
+  },
 });
 
 // Upload endpoint
-app.post("/upload", upload.single("image"), (req, res) => {
-  if (!req.file) {
-    return res.status(400).json({
+app.post("/upload", upload.single("image"), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: "No file uploaded",
+      });
+    }
+
+    const formData = new FormData();
+
+    formData.append(
+      "image",
+      req.file.buffer.toString("base64")
+    );
+
+    const imgbbResponse = await axios.post(
+      image_hosting_api,
+      formData,
+      {
+        headers: formData.getHeaders(),
+      }
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: "Image uploaded successfully",
+      url: imgbbResponse.data.data.url,
+    });
+
+  } catch (error) {
+    console.error(error.response?.data || error.message);
+
+    return res.status(500).json({
       success: false,
-      message: "No file uploaded or invalid file type",
+      message: "Image upload failed",
     });
   }
-
-  const fileUrl = `https://virtualshopbd.com/demo/${req.file.filename}`;
-
-  res.status(200).json({
-    success: true,
-    message: "Image uploaded successfully",
-    url: fileUrl,
-  });
 });
 
-// Error handler for large files
+// Error handler
 app.use((err, req, res, next) => {
-  if (err instanceof multer.MulterError && err.code === "LIMIT_FILE_SIZE") {
+  if (
+    err instanceof multer.MulterError &&
+    err.code === "LIMIT_FILE_SIZE"
+  ) {
     return res.status(400).json({
       success: false,
-      message: "আপনার ফাইল 1MB এর চেয়ে বড়। দয়া করে ছোট ফাইল আপলোড করুন।",
+      message: "File size too large. Max 5MB allowed.",
     });
   }
 
-  if (err) {
-    return res.status(400).json({
-      success: false,
-      message: err.message,
-    });
-  }
-
-  next();
+  return res.status(400).json({
+    success: false,
+    message: err.message,
+  });
 });
 
 
