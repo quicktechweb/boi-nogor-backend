@@ -220,7 +220,7 @@ app.post("/api/fraudcheck", async (req, res) => {
 });
 
 
-const UPLOAD_DIR = "/home/luckyshop/public_html/demo";
+const UPLOAD_DIR = "/home/virtualshopbd/public_html/demo";
 
 // Create folder if missing
 if (!fs.existsSync(UPLOAD_DIR)) {
@@ -261,7 +261,7 @@ app.post("/upload", upload.single("image"), (req, res) => {
     });
   }
 
-  const fileUrl = `https://luckyshop.com.bd/demo/${req.file.filename}`;
+  const fileUrl = `https://virtualshopbd.com/demo/${req.file.filename}`;
 
   res.status(200).json({
     success: true,
