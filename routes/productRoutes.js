@@ -192,6 +192,66 @@ router.get("/:campaignId/products", async (req, res) => {
   }
 });
 
+// route — toggle wishlist
+router.post("/:id/wishlistparts", async (req, res) => {
+  try {
+    const { userAuth } = req.body;
+    if (!userAuth)
+      return res.status(400).json({ success: false, message: "userAuth required" });
+
+    // আগে check করো already আছে কিনা
+    const product = await Product.findById(req.params.id).lean();
+    if (!product)
+      return res.status(404).json({ success: false, message: "Product not found" });
+
+    const already = product.wishlist?.some((w) => w.userAuth === userAuth);
+
+    let updatedProduct;
+
+    if (already) {
+      // remove
+      updatedProduct = await Product.findByIdAndUpdate(
+        req.params.id,
+        { $pull: { wishlist: { userAuth } } },
+        { new: true }
+      );
+    } else {
+      // add
+      updatedProduct = await Product.findByIdAndUpdate(
+        req.params.id,
+        { $push: { wishlist: { userAuth, addedAt: new Date() } } },
+        { new: true }
+      );
+    }
+
+    res.json({
+      success: true,
+      wishlisted: !already,
+      wishlistCount: updatedProduct.wishlist.length,
+    });
+  } catch (err) {
+    console.error("Wishlist route error:", err.message);
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// user এর সব wishlisted products আনো
+router.get("/wishlist", async (req, res) => {
+  try {
+    const { userAuth } = req.query;
+    if (!userAuth)
+      return res.status(400).json({ success: false, message: "userAuth required" });
+
+    const products = await Product.find({
+      "wishlist.userAuth": userAuth,
+    }).select("title images categoryImg ProductPrice oldPrice discount color _id");
+
+    res.json({ success: true, products });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 router.put("/:id", async (req, res) => {
   try {
     const updated = await Product.findByIdAndUpdate(

@@ -64,6 +64,34 @@ const OrderSchema = new mongoose.Schema(
   walletAfter: { type: Number, default: null }
     },
     userAuth: { type: String, required: false },
+     returnRequest: {
+      status: {
+        type: String,
+        enum: ["none", "requested", "approved", "rejected"],
+        default: "none",
+      },
+      productId: { type: String, default: null },
+      productTitle: { type: String, default: null },
+      reason: { type: String, default: "" },
+      requestedAt: { type: Date, default: null },
+      resolvedAt: { type: Date, default: null },
+      resolvedBy: { type: String, default: null },
+    },
+
+    // ✅ Cancel Request
+    cancelRequest: {
+      status: {
+        type: String,
+        enum: ["none", "requested", "approved", "rejected"],
+        default: "none",
+      },
+      productId: { type: String, default: null },
+      productTitle: { type: String, default: null },
+      reason: { type: String, default: "" },
+      requestedAt: { type: Date, default: null },
+      resolvedAt: { type: Date, default: null },
+      resolvedBy: { type: String, default: null },
+    },
   },
   { timestamps: true }
 );
