@@ -14,7 +14,14 @@ import {
   walletmobilePayController,
   updateOrderConsignment,
   updateBulkConsignment,
-  deleteOrders
+  deleteOrders,
+  getWeeklyTopOrders,
+  getRecentlySoldProducts,
+  requestReturn,
+  requestCancel,
+  resolveRequest,
+  getPendingRequests,
+  getReturnPDF
 } from "../controllers/orderController.js";
 
 
@@ -27,9 +34,16 @@ router.delete("/orders/:id", deleteOrder); // Delete order
 router.delete("/ordersdata/:id", deleteOrders); // Delete order
 router.get("/orders/:id", getOrderById); // single id invoice 
 router.get("/my-orders", getMyOrders); // myorder
-
+router.get("/orders/return-pdf/:orderId", getReturnPDF);
 // PUT /api/orders/:id
 router.put("/update-consignment/:id", updateOrderConsignment);
+router.get("/weeklywiseorder", getWeeklyTopOrders);
+router.get("/recentlysold", getRecentlySoldProducts);
+
+router.post("/orders/return",          requestReturn);
+router.post("/orders/cancel",          requestCancel);
+router.post("/orders/resolve",         resolveRequest);      // admin
+router.get("/orders/pending-requests", getPendingRequests);  // admin
 
 // Update multiple orders bulk
 router.put("/bulk-consignment", updateBulkConsignment);

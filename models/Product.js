@@ -89,6 +89,13 @@ allProductPromoEndDate: { type: Date, default: null },
     campaignId: { type: String, default: "" },
     campaignName: { type: String, default: "" },
     campaignImg: { type: String, default: "" },
+    // Product model এ wishlist field add করো
+wishlist: [
+  {
+    userAuth: String, // email or phone
+    addedAt: { type: Date, default: Date.now },
+  }
+],
    
 
 

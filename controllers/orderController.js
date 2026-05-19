@@ -2,6 +2,7 @@ import Order from "../models/Order.js";
 import UserData from "../models/User.js";
 import dotenv from "dotenv";
 dotenv.config();
+import PDFDocument from "pdfkit";
 
 import axios from "axios";
 
@@ -359,6 +360,256 @@ export const getOrders = async (req, res) => {
   }
 };
 
+export const getWeeklyTopOrders = async (req, res) => {
+  try {
+    // Current week start (Monday) and end (Sunday)
+    const now = new Date();
+    const dayOfWeek = now.getDay(); // 0=Sun, 1=Mon...
+    const diffToMonday = (dayOfWeek === 0 ? -6 : 1 - dayOfWeek);
+    
+    const weekStart = new Date(now);
+    weekStart.setDate(now.getDate() + diffToMonday);
+    weekStart.setHours(0, 0, 0, 0);
+    
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekStart.getDate() + 6);
+    weekEnd.setHours(23, 59, 59, 999);
+
+    const topOrders = await Order.aggregate([
+      // ১. শুধু approved orders এই সপ্তাহের
+      {
+        $match: {
+          status: "approved",
+          createdAt: { $gte: weekStart, $lte: weekEnd },
+        },
+      },
+      // ২. products array unwind করো
+      { $unwind: "$products" },
+      // ৩. প্রতিটা product title অনুযায়ী group করো
+      {
+        $group: {
+          _id: "$products.title",
+          totalQuantity: { $sum: "$products.quantity" },
+          totalRevenue: { $sum: "$products.ProductPrice" },
+          img: { $first: "$products.img" },
+          ProductPrice: { $first: "$products.ProductPrice" },
+          orderCount: { $sum: 1 },
+        },
+      },
+      // ৪. বেশি বিক্রি হওয়া আগে
+      { $sort: { totalQuantity: -1 } },
+      // ৫. Top 10
+      { $limit: 10 },
+      // ৬. Clean output
+      {
+        $project: {
+          _id: 0,
+          title: "$_id",
+          totalQuantity: 1,
+          totalRevenue: 1,
+          img: 1,
+          ProductPrice: 1,
+          orderCount: 1,
+        },
+      },
+    ]);
+
+    res.json({
+      weekStart,
+      weekEnd,
+      topProducts: topOrders,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Server Error" });
+  }
+};
+
+
+export const getRecentlySoldProducts = async (req, res) => {
+  try {
+    const topOrders = await Order.aggregate([
+      // ১. শুধু approved orders
+      {
+        $match: {
+          status: "approved",
+        },
+      },
+      // ২. Latest orders আগে
+      { $sort: { createdAt: -1 } },
+      // ৩. products unwind
+      { $unwind: "$products" },
+      // ৪. title দিয়ে group — duplicate product বাদ
+      {
+        $group: {
+          _id: "$products.title",
+          img: { $first: "$products.img" },
+          ProductPrice: { $first: "$products.ProductPrice" },
+          totalQuantity: { $sum: "$products.quantity" },
+          lastSoldAt: { $first: "$createdAt" }, // সবচেয়ে recent order time
+        },
+      },
+      // ৫. সবচেয়ে recently sold আগে
+      { $sort: { lastSoldAt: -1 } },
+      // ৬. Top 20
+      { $limit: 20 },
+      // ৭. Clean output
+      {
+        $project: {
+          _id: 0,
+          title: "$_id",
+          img: 1,
+          ProductPrice: 1,
+          totalQuantity: 1,
+          lastSoldAt: 1,
+        },
+      },
+    ]);
+
+    res.json({ recentlySold: topOrders });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Server Error" });
+  }
+};
+
+// ✅ Return Request
+export const requestReturn = async (req, res) => {
+  try {
+    const { orderId, productId, reason } = req.body;
+
+    const order = await Order.findById(orderId);
+    if (!order) return res.status(404).json({ message: "Order not found" });
+
+    // 7 দিন চেক
+    const daysSince = (Date.now() - new Date(order.createdAt)) / (1000 * 60 * 60 * 24);
+    if (daysSince > 7) {
+      return res.status(400).json({ message: "Return window of 7 days has expired" });
+    }
+
+    if (order.returnRequest?.status === "requested") {
+      return res.status(400).json({ message: "Return request already submitted" });
+    }
+
+    // product title খোঁজো
+    const product = order.products.find((p) => String(p._id) === String(productId));
+
+    order.returnRequest = {
+      status: "requested",
+      productId: String(productId),
+      productTitle: product?.title || "",
+      reason,
+      requestedAt: new Date(),
+      resolvedAt: null,
+      resolvedBy: null,
+    };
+
+    order.statusHistory.push(`Return requested for: ${product?.title || productId}`);
+    await order.save();
+
+    res.json({ message: "Return request submitted successfully", order });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Server Error" });
+  }
+};
+
+// ✅ Cancel Request
+export const requestCancel = async (req, res) => {
+  try {
+    const { orderId, productId, reason } = req.body;
+
+    const order = await Order.findById(orderId);
+    if (!order) return res.status(404).json({ message: "Order not found" });
+
+    if (["shipped", "delivered"].includes(order.status)) {
+      return res.status(400).json({ message: "Cannot cancel after shipment" });
+    }
+
+    if (order.cancelRequest?.status === "requested") {
+      return res.status(400).json({ message: "Cancel request already submitted" });
+    }
+
+    const product = order.products.find((p) => String(p._id) === String(productId));
+
+    order.cancelRequest = {
+      status: "requested",
+      productId: String(productId),
+      productTitle: product?.title || "",
+      reason,
+      requestedAt: new Date(),
+      resolvedAt: null,
+      resolvedBy: null,
+    };
+
+    order.statusHistory.push(`Cancel requested for: ${product?.title || productId}`);
+    await order.save();
+
+    res.json({ message: "Cancel request submitted successfully", order });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Server Error" });
+  }
+};
+
+// ✅ Admin — Approve বা Reject করো
+export const resolveRequest = async (req, res) => {
+  try {
+    const { orderId, type, action, adminEmail } = req.body;
+    // type: "return" | "cancel"
+    // action: "approved" | "rejected"
+
+    if (!["return", "cancel"].includes(type)) {
+      return res.status(400).json({ message: "Invalid type" });
+    }
+    if (!["approved", "rejected"].includes(action)) {
+      return res.status(400).json({ message: "Invalid action" });
+    }
+
+    const order = await Order.findById(orderId);
+    if (!order) return res.status(404).json({ message: "Order not found" });
+
+    const field = type === "return" ? "returnRequest" : "cancelRequest";
+
+    order[field].status     = action;
+    order[field].resolvedAt = new Date();
+    order[field].resolvedBy = adminEmail || "admin";
+
+    // status update
+    if (action === "approved") {
+      if (type === "cancel") order.status = "cancelled";
+      if (type === "return") order.status = "returned";
+    }
+
+    order.statusHistory.push(
+      `${type} request ${action} by ${adminEmail || "admin"}`
+    );
+
+    await order.save();
+    res.json({ message: `${type} ${action} successfully`, order });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Server Error" });
+  }
+};
+
+// ✅ Admin — সব pending return/cancel requests দেখো
+export const getPendingRequests = async (req, res) => {
+  try {
+    const returns = await Order.find({ "returnRequest.status": "requested" })
+      .select("_id paymentId userAuth products returnRequest createdAt")
+      .sort({ "returnRequest.requestedAt": -1 });
+
+    const cancels = await Order.find({ "cancelRequest.status": "requested" })
+      .select("_id paymentId userAuth products cancelRequest createdAt")
+      .sort({ "cancelRequest.requestedAt": -1 });
+
+    res.json({ returns, cancels });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Server Error" });
+  }
+};
 // 🔹 Single Order Consignment Update
 export const updateOrderConsignment = async (req, res) => {
   try {
@@ -406,6 +657,94 @@ export const updateBulkConsignment = async (req, res) => {
 
   } catch (err) {
     console.error("Bulk Update Error:", err);
+    res.status(500).json({ message: "Server Error" });
+  }
+};
+
+
+
+export const getReturnPDF = async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const order = await Order.findById(orderId);
+    if (!order) return res.status(404).json({ message: "Order not found" });
+
+    const req2 = order.returnRequest;
+    const product = order.products.find(
+      (p) => String(p._id) === String(req2?.productId)
+    ) || order.products[0];
+
+    const doc = new PDFDocument({ margin: 50, size: "A4" });
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename=return-${order.paymentId}.pdf`
+    );
+    doc.pipe(res);
+
+    // ── Header ──
+    doc.fontSize(20).font("Helvetica-Bold").text("BoiNogor", 50, 50);
+    doc.fontSize(10).font("Helvetica").fillColor("#6b7280")
+      .text("Return Request Document", 50, 75);
+
+    // divider
+    doc.moveTo(50, 95).lineTo(545, 95).strokeColor("#e5e7eb").stroke();
+
+    // ── Return Info ──
+    doc.fontSize(12).font("Helvetica-Bold").fillColor("#111827")
+      .text("Return Information", 50, 110);
+
+    doc.fontSize(10).font("Helvetica").fillColor("#374151");
+    doc.text(`Order ID         : #${order.paymentId}`, 50, 132);
+    doc.text(`Requested On : ${req2?.requestedAt ? new Date(req2.requestedAt).toLocaleString() : "—"}`, 50, 150);
+    doc.text(`Status              : ${(req2?.status || "").toUpperCase()}`, 50, 168);
+    if (req2?.resolvedAt) {
+      doc.text(`Resolved On   : ${new Date(req2.resolvedAt).toLocaleString()}`, 50, 186);
+    }
+    doc.text(`Reason            : ${req2?.reason || "—"}`, 50, req2?.resolvedAt ? 204 : 186);
+
+    doc.moveTo(50, 225).lineTo(545, 225).strokeColor("#e5e7eb").stroke();
+
+    // ── Product Info ──
+    doc.fontSize(12).font("Helvetica-Bold").fillColor("#111827")
+      .text("Product Details", 50, 240);
+
+    doc.fontSize(10).font("Helvetica").fillColor("#374151");
+    doc.text(`Title       : ${product?.title || "—"}`, 50, 262);
+    doc.text(`Price      : ৳ ${product?.ProductPrice || 0}`, 50, 280);
+    doc.text(`Quantity : ${product?.quantity || 1}`, 50, 298);
+
+    doc.moveTo(50, 320).lineTo(545, 320).strokeColor("#e5e7eb").stroke();
+
+    // ── Customer Info ──
+    doc.fontSize(12).font("Helvetica-Bold").fillColor("#111827")
+      .text("Customer Information", 50, 335);
+
+    doc.fontSize(10).font("Helvetica").fillColor("#374151");
+    doc.text(`Name    : ${order.customer?.name || "—"}`, 50, 357);
+    doc.text(`Phone   : ${order.customer?.phone || "—"}`, 50, 375);
+    doc.text(`Address : ${order.customer?.address || "—"}`, 50, 393);
+
+    doc.moveTo(50, 415).lineTo(545, 415).strokeColor("#e5e7eb").stroke();
+
+    // ── Instructions ──
+    doc.fontSize(10).font("Helvetica-Bold").fillColor("#374151")
+      .text("Return Instructions", 50, 430);
+    doc.fontSize(9).font("Helvetica").fillColor("#6b7280")
+      .text(
+        "Please pack the return product(s) securely and write the order number on the outer side of the package. " +
+        "Drop off at the nearest BoiNogor Hub or wait for courier pickup.",
+        50, 448, { width: 495, lineGap: 4 }
+      );
+
+    // ── Footer ──
+    doc.fontSize(8).fillColor("#9ca3af")
+      .text("Generated by BoiNogor — " + new Date().toLocaleString(), 50, 760, { align: "center" });
+
+    doc.end();
+  } catch (error) {
+    console.error(error);
     res.status(500).json({ message: "Server Error" });
   }
 };
