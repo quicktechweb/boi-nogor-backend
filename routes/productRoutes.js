@@ -1643,15 +1643,32 @@ router.get("/related/:id", async (req, res) => {
 
 
 // ✅ Add Review Route
-router.post("/:id/review", async (req, res) => {
+ router.post("/:id/reviewall", async (req, res) => {
   try {
-    const { userAuth, rating, comment, photos } = req.body;
-
-    const newReview = {
+    const {
       userAuth,
+      username,
       rating,
       comment,
       photos,
+      sellerRating,
+      sellerComment,
+      deliveryRating,
+      deliveryComment,
+      anonymous,
+    } = req.body;
+
+    const newReview = {
+      userAuth,
+      username: anonymous ? "Anonymous" : username || "Anonymous",
+      rating,
+      comment,
+      photos,
+      sellerRating,
+      sellerComment,
+      deliveryRating,
+      deliveryComment,
+      anonymous,
       date: new Date(),
     };
 
@@ -1661,9 +1678,13 @@ router.post("/:id/review", async (req, res) => {
       { new: true }
     );
 
-    if (!updatedProduct) return res.status(404).json({ message: "Product not found" });
+    if (!updatedProduct)
+      return res.status(404).json({ message: "Product not found" });
 
-    res.status(200).json({ message: "Review added successfully", product: updatedProduct });
+    res.status(200).json({
+      message: "Review added successfully",
+      product: updatedProduct,
+    });
   } catch (error) {
     console.error("Error adding review:", error);
     res.status(500).json({ message: "Server error" });

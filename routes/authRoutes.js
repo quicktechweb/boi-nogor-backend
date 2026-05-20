@@ -650,6 +650,79 @@ router.put("/update/:id", async (req, res) => {
   }
 });
 
+
+// GET — /me/:id এই route এই আসবে, আলাদা কিছু লাগবে না
+
+// POST — নতুন address add
+router.post("/address/add/:id", async (req, res) => {
+  try {
+    const user = await UserData.findById(req.params.id);
+    if (!user) return res.status(404).json({ success: false, message: "User not found" });
+
+    user.addresses.push(req.body);
+    await user.save();
+
+    res.json({ success: true, addresses: user.addresses });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// PUT — existing address edit
+router.put("/address/update/:userId/:addressId", async (req, res) => {
+  try {
+    const user = await UserData.findById(req.params.userId);
+    if (!user) return res.status(404).json({ success: false, message: "User not found" });
+
+    const addr = user.addresses.id(req.params.addressId);
+    if (!addr) return res.status(404).json({ success: false, message: "Address not found" });
+
+    Object.assign(addr, req.body);
+    await user.save();
+
+    res.json({ success: true, addresses: user.addresses });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// DELETE — address delete
+router.delete("/address/delete/:userId/:addressId", async (req, res) => {
+  try {
+    const user = await UserData.findById(req.params.userId);
+    if (!user) return res.status(404).json({ success: false, message: "User not found" });
+
+    user.addresses.pull(req.params.addressId);
+    await user.save();
+
+    res.json({ success: true, addresses: user.addresses });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+router.put("/change-password", async (req, res) => {
+  try {
+    const { identifier, oldPassword, newPassword } = req.body;
+
+    const user = await UserData.findOne({
+      $or: [{ phoneNumber: identifier }, { email: identifier }],
+    });
+
+    if (!user) return res.status(404).json({ success: false, message: "User not found" });
+
+    const isMatch = await user.comparePassword(oldPassword);
+    if (!isMatch) return res.status(400).json({ success: false, message: "Old password is incorrect" });
+
+    user.password = await bcrypt.hash(newPassword, 12);
+    await user.save();
+
+    res.json({ success: true, message: "Password changed successfully" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+});
 //  user role set 
 // routes/userRoutes.js
 // GET role by phone or email
