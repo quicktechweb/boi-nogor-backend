@@ -3,12 +3,17 @@ import mongoose from "mongoose";
 import { nanoid } from "nanoid";
 
 const reviewSchema = new mongoose.Schema({
-  userAuth: String, // user email or phone
-  rating: { type: Number, required: true },
-   username: { type: String, default: "Anonymous" },
-  comment: { type: String, required: true },
-  photos: [String], // uploaded image URLs
-  date: { type: Date, default: Date.now },
+  userAuth:      String,
+  username:      { type: String, default: "Anonymous" },
+  rating:        { type: Number, required: true },
+  comment:       { type: String, required: true },
+  photos:        [String],
+  sellerRating:  { type: Number, default: 2 },      // 0=😞 1=😐 2=😊
+  sellerComment: { type: String, default: "" },
+  deliveryRating:  { type: Number, default: 0 },
+  deliveryComment: { type: String, default: "" },
+  anonymous:     { type: Boolean, default: false },
+  date:          { type: Date, default: Date.now },
 });
 
 const productSchema = new mongoose.Schema(

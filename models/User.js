@@ -20,12 +20,27 @@ const userDataSchema = new mongoose.Schema(
     password: { type: String },
     displayName: { type: String, required: true },
     referralCode: { type: String },
-    
+     phoneNumber: { type: String, sparse: true },  // ✅ এটা add করো
+    email: { type: String, sparse: true }, 
      myrefferalcode: { type: String, unique: true, sparse: true },
     status: { type: String, default: "active" },
     birthday: { type: String },        // ✅ add
     gender: { type: String },
-    address: { type: String },
+    // address: { type: String },
+    addresses: [
+  {
+    name: { type: String, default: "" },
+    phone: { type: String, default: "" },
+    landmark: { type: String, default: "" },
+    province: { type: String, default: "" },
+    city: { type: String, default: "" },
+    zone: { type: String, default: "" },
+    fullAddress: { type: String, default: "" },
+    label: { type: String, default: "HOME" },
+    isDefaultShipping: { type: Boolean, default: false },
+    isDefaultBilling: { type: Boolean, default: false },
+  }
+],
     avatar: { type: String },
 
     // newpartroles: { type: String, enum: ["user","subadmin","admin","SUPERadmin","Moderator","Support"], default:"user"},

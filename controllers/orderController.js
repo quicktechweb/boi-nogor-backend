@@ -532,6 +532,8 @@ export const requestCancel = async (req, res) => {
 
     const product = order.products.find((p) => String(p._id) === String(productId));
 
+    order.status = "cancel";  // ✅ শুধু এই লাইন add হয়েছে
+
     order.cancelRequest = {
       status: "requested",
       productId: String(productId),
