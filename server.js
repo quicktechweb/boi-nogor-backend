@@ -30,6 +30,7 @@ import pixelRoutes from "./routes/pixelRoutes.js";
 import  promoSectionRoutes  from './routes/promoSection.js';
 import promoCardSectionRoutes from "./routes/promoCardSection.js"
 import popularCategoryRoutes from "./routes/popularCategory.js";
+import popularAuthor from "./routes/PopularAuthor.js";
 import categoryBannerRoutes from "./routes/categoryBannerRoutes.js";
 import carouselRoutes from "./routes/carouselRoutes.js";
 import homeBrandRoute from "./routes/homeBrandRoute.js";
@@ -90,6 +91,7 @@ app.use("/api", pixelRoutes);
 app.use("/api/promosection", promoSectionRoutes);
 app.use("/api/promocardsection", promoCardSectionRoutes);
 app.use("/api/popularcategory", popularCategoryRoutes);
+app.use("/api/popularAuthor", popularAuthor);
 app.use("/api/categorybanner", categoryBannerRoutes);
 app.use("/api/carousel", carouselRoutes);
 app.use("/api/brandspart", homeBrandRoute);

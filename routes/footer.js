@@ -6,7 +6,7 @@ const router = express.Router();
 // Get Footer (latest one)
 router.get("/", async (req, res) => {
   try {
-    const footer = await Footer.findOne().sort({ createdAt: -1 });
+    const footer = await Footer.findOne();
     if (!footer) {
       return res.status(404).json({ success: false, message: "Footer not found" });
     }
