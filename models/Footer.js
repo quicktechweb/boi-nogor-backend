@@ -1,64 +1,31 @@
 import mongoose from "mongoose";
 
+const SocialLinkSchema = new mongoose.Schema({
+  platform: { type: String, required: true },
+  url: { type: String, required: true },
+  color: { type: String, required: true },
+  icon: { type: String, required: true },
+});
+
+const ContactItemSchema = new mongoose.Schema({
+  label: { type: String, required: true },
+  icon: { type: String, required: true },
+  lines: [{ type: String }],
+});
+
 const FooterSchema = new mongoose.Schema(
   {
-    quickLinks: [String],
-    luckyShop: [String],
-    payment: [
-      {
-        name: String,
-        icon: String,
-      },
-    ],
-    shipping: [
-      {
-        label: String,
-        emoji: String,
-        subtitle: String,
-      },
-    ],
-    citiesCovered: [String],
-    support: {
-      title: String,
+    logoUrl: { type: String, required: true },
+    contacts: [ContactItemSchema],
+    socialLinks: [SocialLinkSchema],
+    address: {
+      line1: { type: String },
+      line2: { type: String },
     },
-   boxed: {
-  title: { type: String, default: "📞 Customer Support" },
-  note: { type: String, default: "Get responses in your native language" },
-  servicesLabel: { type: String, default: "📱 Services:" },
-  phone: { type: String, default: "+8801091271236" },
-  downloadAppLabel: { type: String, default: "📲 Download our App" },
-  appImages: {
-    apple: { type: String, default: "https://sellularr.netlify.app/images/appstore.png" },
-    google: { type: String, default: "https://sellularr.netlify.app/images/playstore.png" },
+    adminEmail: { type: String },
+    copyrightText: { type: String },
   },
-},
-
-    appImages: {
-      apple: String,
-      google: String,
-    },
-    certifications: [
-      {
-        alt: String,
-        img: String,
-      },
-    ],
-    copyright: String,
-    bottomLinks: [String],
-    followUsLabel: String,
-    social: [
-      {
-        name: String,
-        icon: String,
-      },
-    ],
-    headings: Object,
-    smallText: Object,
-  },
-  {
-    timestamps: true,       // ✅ createdAt & updatedAt
-    collection: "Footer",   // ✅ fixed collection name
-  }
+  { timestamps: true, collection: "Footer" } // 👈 এটাই fix
 );
 
 export default mongoose.model("Footer", FooterSchema);
