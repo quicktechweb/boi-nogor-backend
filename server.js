@@ -43,10 +43,14 @@ import dns from "dns";
 
 import  multer from "multer";
 import campaignRoutes from "./routes/campaignRoutes.js";
+import departmentRoutes from "./routes/EmployeeDepartmentRoute.js";
 import winnerRoutes from "./routes/winnerRoutes.js";
+import employeeRoutes from "./routes/EmployeeRoute.js";
 import messageRoutes from "./routes/messageRoutes.js";
 import adminBadgeRoutes from "./routes/adminBadge.js";
+import authorRoutes from "./routes/AddAuthor.js";
 import roleRoutes from "./routes/roles.js";
+import salecategoryroute from "./routes/salecategoryRoute.js";
 import gtmRoutes from "./routes/gtmRoutes.js";
 
 // dotenv.config();
@@ -104,7 +108,11 @@ app.use("/api/winners", winnerRoutes);
 app.use("/api/message", messageRoutes);
 app.use("/api/admin/badges", adminBadgeRoutes);
 app.use("/roles", roleRoutes);
+app.use("/api/employees", employeeRoutes);
+app.use("/api/departments", departmentRoutes);
 app.use("/api/settings", gtmRoutes);
+app.use("/api/authors", authorRoutes);
+app.use("/api/salecategory", salecategoryroute);
 
 app.get("/envtest", (req, res) => {
   res.json({

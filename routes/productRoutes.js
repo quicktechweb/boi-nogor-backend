@@ -8,6 +8,8 @@ import axios from "axios";
 import FormData from "form-data";
 import slugify from "slugify";
 import  sharp from "sharp";
+import Author from "../models/AddAuthor.js";
+
 // import { promises as fsPromises } from "fs";
 
 
@@ -463,6 +465,64 @@ router.get("/details/:id", async (req, res) => {
 
 
 
+// router.get("/", async (req, res) => {
+//   try {
+//     res.writeHead(200, {
+//       "Content-Type": "application/json",
+//       "Transfer-Encoding": "chunked",
+//     });
+
+//     res.write("["); 
+//     let first = true;
+
+//     const cursor = Product.find().sort({ createdAt: -1 }).lean().cursor();
+
+//     for (let product = await cursor.next(); product != null; product = await cursor.next()) {
+//       if (!first) res.write(",");
+//       first = false;
+
+//       // 🔥 Fetch coupon list for this product
+//       const coupons = await CouponPurchase.find({ productId: product._id }).lean();
+
+//       // 🔥 Latest round calculation
+//       const latestRound = coupons.length
+//         ? Math.max(...coupons.map(c => c.round || 1))
+//         : 1;
+
+//       // 🔥 Sold count in latest round
+//       let sold = coupons.filter(c => c.round === latestRound).length;
+
+//       const totalcupon = product.totalcupon || 0;
+
+//       // 🔄 Sold reset if full
+//       if (sold >= totalcupon) sold = 0;
+
+//       const remaining = Math.max(totalcupon - sold, 0);
+//       const progress = totalcupon > 0 ? (sold / totalcupon) * 100 : 0;
+
+//       const responseDoc = {
+//         ...product,
+//         stats: {
+//           sold,
+//           totalcupon,
+//           remaining,
+//           latestRound,
+//           progress: Number(progress.toFixed(2)),
+//         },
+//       };
+
+//       res.write(JSON.stringify(responseDoc));
+//     }
+
+//     res.write("]");
+//     res.end();
+
+//   } catch (err) {
+//     console.error(err);
+//     res.status(500).json({ message: "Server Error" });
+//   }
+// });
+
 router.get("/", async (req, res) => {
   try {
     res.writeHead(200, {
@@ -470,8 +530,11 @@ router.get("/", async (req, res) => {
       "Transfer-Encoding": "chunked",
     });
 
-    res.write("["); 
+    res.write("[");
     let first = true;
+
+    // ✅ সব author একবারে load করো — per product query না
+    const allAuthors = await Author.find().lean();
 
     const cursor = Product.find().sort({ createdAt: -1 }).lean().cursor();
 
@@ -479,34 +542,26 @@ router.get("/", async (req, res) => {
       if (!first) res.write(",");
       first = false;
 
-      // 🔥 Fetch coupon list for this product
+      // 🔥 Coupon stats
       const coupons = await CouponPurchase.find({ productId: product._id }).lean();
-
-      // 🔥 Latest round calculation
       const latestRound = coupons.length
         ? Math.max(...coupons.map(c => c.round || 1))
         : 1;
-
-      // 🔥 Sold count in latest round
       let sold = coupons.filter(c => c.round === latestRound).length;
-
       const totalcupon = product.totalcupon || 0;
-
-      // 🔄 Sold reset if full
       if (sold >= totalcupon) sold = 0;
-
       const remaining = Math.max(totalcupon - sold, 0);
       const progress = totalcupon > 0 ? (sold / totalcupon) * 100 : 0;
 
+      // ✅ childcategoryName দিয়ে author match
+      const matchedAuthor = allAuthors.find(
+        a => a.name?.trim() === product.childcategoryName?.trim()
+      ) || null;
+
       const responseDoc = {
         ...product,
-        stats: {
-          sold,
-          totalcupon,
-          remaining,
-          latestRound,
-          progress: Number(progress.toFixed(2)),
-        },
+        author: matchedAuthor, // match না হলে null
+      
       };
 
       res.write(JSON.stringify(responseDoc));
@@ -878,101 +933,172 @@ router.get("/filterapidata", async (req, res) => {
 //   }
 // });
 
+// router.get("/productsdata", async (req, res) => {
+//   try {
+//     const { category, subcategory, child,brand,title, page = 1, limit = 20 } = req.query;
+
+//   const filter = {};
+
+// if (category) {
+//   filter.categoryName = {
+//     $regex: category.trim(),
+//     $options: "i"
+//   };
+// }
+
+// if (subcategory) {
+//   filter.subcategoryName = {
+//     $regex: subcategory.trim(),
+//     $options: "i"
+//   };
+// }
+
+// if (child) {
+//   filter.childcategoryName = {
+//     $regex: child.trim(),
+//     $options: "i"
+//   };
+// }
+
+// if (brand) {
+//   filter.brandName = {
+//     $regex: brand.trim(),
+//     $options: "i"
+//   };
+// }
+
+
+
+
+//     // ✅ TITLE (⭐ NEW)
+// // ✅ TITLE (2+ words partial match)
+// if (title) {
+//   const words = title
+//     .replace(/-/g, " ")
+//     .trim()
+//     .split(/\s+/)
+//     .filter(Boolean);
+
+//   filter.$and = words.map(word => ({
+//     title: { $regex: word, $options: "i" }
+//   }));
+// }
+
+
+//     const skip = (page - 1) * limit;
+
+//     // 🔹 Fetch paginated products
+//     const products = await Product.find(filter)
+//       .sort({ createdAt: -1 })
+//       .skip(skip)
+//       .limit(Number(limit))
+//       .lean();
+
+//     // 🔹 Fetch total count for pagination
+//     const total = await Product.countDocuments(filter);
+
+//     // 🔹 Add coupon stats for each product
+//     const productsWithStats = await Promise.all(
+//       products.map(async (product) => {
+//         const coupons = await CouponPurchase.find({ productId: product._id }).lean();
+
+//         // Latest round
+//         const latestRound = coupons.length
+//           ? Math.max(...coupons.map(c => c.round || 1))
+//           : 1;
+
+//         // Sold in latest round
+//         let sold = coupons.filter(c => c.round === latestRound)
+//                           .reduce((sum, c) => sum + (c.quantity || 0), 0);
+
+//         const totalcupon = product.totalcupon || 0;
+
+//         // Sold reset if full
+//         if (sold >= totalcupon) sold = totalcupon;
+
+//         const remaining = Math.max(totalcupon - sold, 0);
+//         const progress = totalcupon > 0 ? (sold / totalcupon) * 100 : 0;
+
+//         return {
+//           ...product,
+//           stats: {
+//             sold,
+//             totalcupon,
+//             remaining,
+//             latestRound,
+//             progress: Number(progress.toFixed(2)),
+//           },
+//         };
+//       })
+//     );
+
+//     res.json({
+//       products: productsWithStats,
+//       pagination: {
+//         total,
+//         page: Number(page),
+//         limit: Number(limit),
+//         totalPages: Math.ceil(total / limit),
+//       },
+//     });
+
+//   } catch (err) {
+//     console.error(err);
+//     res.status(500).json({ message: "Server Error" });
+//   }
+// });
+
 router.get("/productsdata", async (req, res) => {
   try {
-    const { category, subcategory, child,brand,title, page = 1, limit = 20 } = req.query;
+    const { category, subcategory, child, brand, title, page = 1, limit = 20 } = req.query;
 
-  const filter = {};
+    const filter = {};
 
-if (category) {
-  filter.categoryName = {
-    $regex: category.trim(),
-    $options: "i"
-  };
-}
+    if (category) filter.categoryName = { $regex: category.trim(), $options: "i" };
+    if (subcategory) filter.subcategoryName = { $regex: subcategory.trim(), $options: "i" };
+    if (child) filter.childcategoryName = { $regex: child.trim(), $options: "i" };
+    if (brand) filter.brandName = { $regex: brand.trim(), $options: "i" };
 
-if (subcategory) {
-  filter.subcategoryName = {
-    $regex: subcategory.trim(),
-    $options: "i"
-  };
-}
-
-if (child) {
-  filter.childcategoryName = {
-    $regex: child.trim(),
-    $options: "i"
-  };
-}
-
-if (brand) {
-  filter.brandName = {
-    $regex: brand.trim(),
-    $options: "i"
-  };
-}
-
-
-
-
-    // ✅ TITLE (⭐ NEW)
-// ✅ TITLE (2+ words partial match)
-if (title) {
-  const words = title
-    .replace(/-/g, " ")
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean);
-
-  filter.$and = words.map(word => ({
-    title: { $regex: word, $options: "i" }
-  }));
-}
-
+    if (title) {
+      const words = title.replace(/-/g, " ").trim().split(/\s+/).filter(Boolean);
+      filter.$and = words.map(word => ({ title: { $regex: word, $options: "i" } }));
+    }
 
     const skip = (page - 1) * limit;
 
-    // 🔹 Fetch paginated products
-    const products = await Product.find(filter)
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(Number(limit))
-      .lean();
+    const [products, total, allAuthors] = await Promise.all([
+      Product.find(filter).sort({ createdAt: -1 }).skip(skip).limit(Number(limit)).lean(),
+      Product.countDocuments(filter),
+      Author.find().lean(), // ✅ একবারেই সব author load
+    ]);
 
-    // 🔹 Fetch total count for pagination
-    const total = await Product.countDocuments(filter);
-
-    // 🔹 Add coupon stats for each product
     const productsWithStats = await Promise.all(
       products.map(async (product) => {
         const coupons = await CouponPurchase.find({ productId: product._id }).lean();
 
-        // Latest round
         const latestRound = coupons.length
           ? Math.max(...coupons.map(c => c.round || 1))
           : 1;
 
-        // Sold in latest round
-        let sold = coupons.filter(c => c.round === latestRound)
-                          .reduce((sum, c) => sum + (c.quantity || 0), 0);
+        let sold = coupons
+          .filter(c => c.round === latestRound)
+          .reduce((sum, c) => sum + (c.quantity || 0), 0);
 
         const totalcupon = product.totalcupon || 0;
-
-        // Sold reset if full
         if (sold >= totalcupon) sold = totalcupon;
 
         const remaining = Math.max(totalcupon - sold, 0);
         const progress = totalcupon > 0 ? (sold / totalcupon) * 100 : 0;
 
+        // ✅ childcategoryName দিয়ে author match
+        const matchedAuthor = allAuthors.find(
+          a => a.name?.trim() === product.childcategoryName?.trim()
+        ) || null;
+
         return {
           ...product,
-          stats: {
-            sold,
-            totalcupon,
-            remaining,
-            latestRound,
-            progress: Number(progress.toFixed(2)),
-          },
+          author: matchedAuthor,
+          
         };
       })
     );
@@ -992,7 +1118,6 @@ if (title) {
     res.status(500).json({ message: "Server Error" });
   }
 });
-
 
 router.get("/latestproduct", async (req, res) => {
   try {
