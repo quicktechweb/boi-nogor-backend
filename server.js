@@ -113,7 +113,7 @@ app.use("/api/departments", departmentRoutes);
 app.use("/api/settings", gtmRoutes);
 app.use("/api/authors", authorRoutes);
 app.use("/api/salecategory", salecategoryroute);
-
+// new part 
 app.get("/envtest", (req, res) => {
   res.json({
     BKASH_BASE_URL: process.env.BKASH_BASE_URL,
