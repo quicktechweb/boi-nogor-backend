@@ -32,6 +32,19 @@ const employeeSchema = new mongoose.Schema(
       trim: true,
       match: [/^\S+@\S+\.\S+$/, "Please enter a valid email"],
     },
+    paymentStatusByMonth: {
+  type: Map,
+  of: String,
+  default: {},
+},
+kpiBonus: {
+  type: Number,
+  default: 0,
+},
+structuralDeduction: {
+  type: Number,
+  default: 0,
+},
     department: {
       type: String,
       required: [true, "Department is required"],

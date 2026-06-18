@@ -100,7 +100,7 @@ router.post("/verify-otp", (req, res) => {
 
 // ✅ Register User
  router.post("/register", async (req, res) => {
-  const { phoneNumber, password, displayName, referralCode } = req.body;
+  const { phoneNumber, password, displayName, email,   referralCode } = req.body;
 
   try {
     const existingUser = await UserData.findOne({ phoneNumber });
@@ -114,6 +114,7 @@ router.post("/verify-otp", (req, res) => {
       phoneNumber,
       password: hashedPassword,
       displayName,
+      email: email || "",
       referralCode: referralCode || "",
       myrefferalcode
     });

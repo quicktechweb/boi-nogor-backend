@@ -104,7 +104,7 @@ router.delete("/:id", async (req, res) => {
 // PATCH /api/employees/:id/payment-status — payment status update
 router.patch("/:id/payment-status", async (req, res) => {
   try {
-    const { paymentStatus } = req.body;
+    const { paymentStatus, month } = req.body;
 
     const allowed = ["Pending", "Cleared", "Rejected"];
     if (!allowed.includes(paymentStatus)) {
@@ -114,9 +114,19 @@ router.patch("/:id/payment-status", async (req, res) => {
       });
     }
 
+    if (!month) {
+      return res.status(400).json({
+        success: false,
+        message: "Month is required",
+      });
+    }
+
+    // "Jun 2026" → "Jun_2026" (MongoDB Map key এ space চলে না)
+    const safeMonth = month.replace(/\s+/g, "_");
+
     const employee = await Employee.findByIdAndUpdate(
       req.params.id,
-      { paymentStatus },
+      { $set: { [`paymentStatusByMonth.${safeMonth}`]: paymentStatus } },
       { new: true }
     );
 
@@ -126,7 +136,7 @@ router.patch("/:id/payment-status", async (req, res) => {
 
     res.status(200).json({
       success: true,
-      message: `Payment status updated to ${paymentStatus}`,
+      message: `Payment status updated to ${paymentStatus} for ${month}`,
       data: employee,
     });
   } catch (error) {

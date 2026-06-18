@@ -425,40 +425,251 @@ export const getWeeklyTopOrders = async (req, res) => {
   }
 };
 
+// export const getWeeklyTopOrderspart = async (req, res) => {
+//   try {
+//     const statusCheck = await Order.aggregate([
+//       { $group: { _id: "$status", count: { $sum: 1 } } }
+//     ]);
+//     console.log("All order statuses:", JSON.stringify(statusCheck));
+
+//     const sampleOrder = await Order.findOne({}).lean();
+//     console.log("Sample order:", JSON.stringify(sampleOrder, null, 2));
+
+//     const pipeline = (matchStage) => [
+//       { $match: matchStage },
+//       { $unwind: "$products" },
+//     {
+//   $group: {
+//     _id:           "$products.title",
+//     totalQuantity: { $sum: { $ifNull: ["$products.quantity", 1] } },
+//     totalRevenue:  { $sum: { $ifNull: ["$products.ProductPrice", 0] } },
+//     // ✅ images array আগে, না থাকলে img single string
+//     img:           { $first: {
+//                       $ifNull: [
+//                         { $arrayElemAt: ["$products.images", 0] },  // images[0]
+//                         "$products.img"                              // fallback: img string
+//                       ]
+//                     }},
+//     ProductPrice:  { $first: "$products.ProductPrice" },
+//     orderCount:    { $sum: 1 },
+//   },
+// },
+//       { $sort: { totalQuantity: -1 } },
+//       { $limit: 10 },
+//       {
+//         $project: {
+//           _id:           0,
+//           title:         "$_id",
+//           totalQuantity: 1,
+//           totalRevenue:  1,
+//           images:        ["$img"],  // ✅ getRecentlySoldProducts এর মতো
+//           ProductPrice:  1,
+//           orderCount:    1,
+//         },
+//       },
+//     ];
+
+//     const now       = new Date();
+//     const dayOfWeek = now.getUTCDay();
+//     const diffToMon = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+
+//     const weekStart = new Date(now);
+//     weekStart.setUTCDate(now.getUTCDate() + diffToMon);
+//     weekStart.setUTCHours(0, 0, 0, 0);
+
+//     const weekEnd = new Date(weekStart);
+//     weekEnd.setUTCDate(weekStart.getUTCDate() + 6);
+//     weekEnd.setUTCHours(23, 59, 59, 999);
+
+//     const thisWeekMatch = {
+//       createdAt: { $gte: weekStart, $lte: weekEnd },
+//     };
+
+//     let topProducts   = await Order.aggregate(pipeline(thisWeekMatch));
+//     let isCurrentWeek = true;
+//     let usedStart     = weekStart;
+//     let usedEnd       = weekEnd;
+
+//     if (!topProducts || topProducts.length === 0) {
+//       for (let i = 1; i <= 8; i++) {
+//         const prevStart = new Date(weekStart);
+//         prevStart.setUTCDate(weekStart.getUTCDate() - 7 * i);
+
+//         const prevEnd = new Date(weekEnd);
+//         prevEnd.setUTCDate(weekEnd.getUTCDate() - 7 * i);
+
+//         const prevProducts = await Order.aggregate(pipeline({
+//           createdAt: { $gte: prevStart, $lte: prevEnd },
+//         }));
+
+//         if (prevProducts && prevProducts.length > 0) {
+//           topProducts   = prevProducts;
+//           isCurrentWeek = false;
+//           usedStart     = prevStart;
+//           usedEnd       = prevEnd;
+//           break;
+//         }
+//       }
+//     }
+
+//     return res.json({
+//       weekStart:     usedStart,
+//       weekEnd:       usedEnd,
+//       isCurrentWeek,
+//       fallback:      !isCurrentWeek,
+//       topProducts,
+//       _debug: {
+//         statuses:            statusCheck,
+//         sampleOrderKeys:     sampleOrder ? Object.keys(sampleOrder) : [],
+//         productsFieldSample: sampleOrder?.products?.[0] || null,
+//       },
+//     });
+
+//   } catch (error) {
+//     console.error(error);
+//     res.status(500).json({ message: "Server Error" });
+//   }
+// };
+
+export const getWeeklyTopOrderspart = async (req, res) => {
+  try {
+    const statusCheck = await Order.aggregate([
+      { $group: { _id: "$status", count: { $sum: 1 } } }
+    ]);
+
+    const sampleOrder = await Order.findOne({ "products.0": { $exists: true } }).lean();
+    console.log("Order products[0]:", JSON.stringify(sampleOrder?.products?.[0], null, 2));
+
+    const pipeline = (matchStage) => [
+      { $match: matchStage },
+      { $unwind: "$products" },
+      {
+        $group: {
+          _id:           "$products.title",
+          // 🔥 product _id capture korlam — productId field thakle oita, na thakle products._id
+          productId: {
+            $first: {
+              $ifNull: ["$products.productId", "$products._id"]
+            }
+          },
+          totalQuantity: { $sum: { $ifNull: ["$products.quantity", 1] } },
+          totalRevenue:  { $sum: { $ifNull: ["$products.ProductPrice", 0] } },
+          img: {
+            $first: {
+              $ifNull: [
+                { $arrayElemAt: ["$products.images", 0] },
+                "$products.image",
+                "$products.img",
+                { $arrayElemAt: ["$products.subcategoryImg", 0] },
+                "$products.subcategoryImg",
+                "$products.categoryImg",
+              ]
+            }
+          },
+          ProductPrice:  { $first: "$products.ProductPrice" },
+          orderCount:    { $sum: 1 },
+        },
+      },
+      { $sort: { totalQuantity: -1 } },
+      { $limit: 10 },
+      {
+        $project: {
+          _id:           { $toString: "$productId" }, // 🔥 product _id output e dilam
+          title:         "$_id",
+          totalQuantity: 1,
+          totalRevenue:  1,
+          images:        ["$img"],
+          ProductPrice:  1,
+          orderCount:    1,
+        },
+      },
+    ];
+
+    const now       = new Date();
+    const dayOfWeek = now.getUTCDay();
+    const diffToMon = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+
+    const weekStart = new Date(now);
+    weekStart.setUTCDate(now.getUTCDate() + diffToMon);
+    weekStart.setUTCHours(0, 0, 0, 0);
+
+    const weekEnd = new Date(weekStart);
+    weekEnd.setUTCDate(weekStart.getUTCDate() + 6);
+    weekEnd.setUTCHours(23, 59, 59, 999);
+
+    let topProducts   = await Order.aggregate(pipeline({ createdAt: { $gte: weekStart, $lte: weekEnd } }));
+    let isCurrentWeek = true;
+    let usedStart     = weekStart;
+    let usedEnd       = weekEnd;
+
+    if (!topProducts || topProducts.length === 0) {
+      for (let i = 1; i <= 8; i++) {
+        const prevStart = new Date(weekStart);
+        prevStart.setUTCDate(weekStart.getUTCDate() - 7 * i);
+
+        const prevEnd = new Date(weekEnd);
+        prevEnd.setUTCDate(weekEnd.getUTCDate() - 7 * i);
+
+        const prevProducts = await Order.aggregate(pipeline({
+          createdAt: { $gte: prevStart, $lte: prevEnd },
+        }));
+
+        if (prevProducts && prevProducts.length > 0) {
+          topProducts   = prevProducts;
+          isCurrentWeek = false;
+          usedStart     = prevStart;
+          usedEnd       = prevEnd;
+          break;
+        }
+      }
+    }
+
+    return res.json({
+      weekStart:     usedStart,
+      weekEnd:       usedEnd,
+      isCurrentWeek,
+      fallback:      !isCurrentWeek,
+      topProducts,
+      _debug: {
+        statuses:            statusCheck,
+        productsFieldSample: sampleOrder?.products?.[0] || null,
+      },
+    });
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Server Error" });
+  }
+};
+
 
 export const getRecentlySoldProducts = async (req, res) => {
   try {
     const topOrders = await Order.aggregate([
-      // ১. শুধু approved orders
       {
         $match: {
           status: "approved",
         },
       },
-      // ২. Latest orders আগে
       { $sort: { createdAt: -1 } },
-      // ৩. products unwind
       { $unwind: "$products" },
-      // ৪. title দিয়ে group — duplicate product বাদ
       {
         $group: {
           _id: "$products.title",
+          productId: { $first: "$products._id" },
           img: { $first: "$products.img" },
           ProductPrice: { $first: "$products.ProductPrice" },
           totalQuantity: { $sum: "$products.quantity" },
-          lastSoldAt: { $first: "$createdAt" }, // সবচেয়ে recent order time
+          lastSoldAt: { $first: "$createdAt" },
         },
       },
-      // ৫. সবচেয়ে recently sold আগে
       { $sort: { lastSoldAt: -1 } },
-      // ৬. Top 20
       { $limit: 20 },
-      // ৭. Clean output
       {
         $project: {
-          _id: 0,
+          _id: "$productId",
           title: "$_id",
-          img: 1,
+          images: ["$img"],  // ← single img কে array এ wrap করো
           ProductPrice: 1,
           totalQuantity: 1,
           lastSoldAt: 1,

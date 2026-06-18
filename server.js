@@ -40,6 +40,9 @@ import  navbarCategoryRoutes from "./routes/navbarcategory.js";
 import bannerAdvertisementRoute from "./routes/bannerAdvertisementRoute.js";
 import  fs from "fs";
 import dns from "dns";
+import { v2 as cloudinary } from 'cloudinary';
+import { fileURLToPath } from 'url';
+import path from 'path';
 
 import  multer from "multer";
 import campaignRoutes from "./routes/campaignRoutes.js";
@@ -189,6 +192,30 @@ const API_KEY = "820771871c5fb8b20a3ae88e8117b388"; // ⚠️ এখানে AP
 //   }
 // });
 
+const __filenamepdf = fileURLToPath(import.meta.url);
+const __dirnamepdf = path.dirname(__filenamepdf);
+
+const pdfStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const dir = path.join(__dirnamepdf, 'pdf');
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    cb(null, dir);
+  },
+  filename: (req, file, cb) => {
+    const unique = Date.now() + '-' + Math.round(Math.random() * 1e9);
+    cb(null, unique + '.pdf');
+  }
+});
+
+const uploadpdf = multer({ storage: pdfStorage });
+
+app.post('/api/upload-pdf', uploadpdf.single('file'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+  const url = `https://boinogorbookshop.com/backendboinogorbookshop/pdf/${req.file.filename}`;
+  res.json({ url });
+});
+
+app.use('/pdf', express.static(path.join(__dirnamepdf, 'pdf')));
 
 app.post("/api/fraudcheck", async (req, res) => {
   try {

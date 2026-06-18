@@ -17,6 +17,7 @@ import {
   deleteOrders,
   getWeeklyTopOrders,
   getRecentlySoldProducts,
+  getWeeklyTopOrderspart,
   requestReturn,
   requestCancel,
   resolveRequest,
@@ -38,6 +39,7 @@ router.get("/orders/return-pdf/:orderId", getReturnPDF);
 // PUT /api/orders/:id
 router.put("/update-consignment/:id", updateOrderConsignment);
 router.get("/weeklywiseorder", getWeeklyTopOrders);
+router.get("/weeklywiseorderpart", getWeeklyTopOrderspart);
 router.get("/recentlysold", getRecentlySoldProducts);
 
 router.post("/orders/return",          requestReturn);

@@ -576,6 +576,38 @@ router.get("/", async (req, res) => {
   }
 });
 
+router.get("/purchaselist", async (req, res) => {
+  try {
+    const products = await Product.find()
+      .select("purchasePrice")
+      .sort({ createdAt: -1 })
+      .lean();
+
+    // 🔥 BD timezone e formatted date add korlam, original createdAt o thakbe
+    const productsWithBDTime = products.map((p) => ({
+      ...p,
+      createdAtBD: new Date(p.createdAt).toLocaleString("en-BD", {
+        timeZone: "Asia/Dhaka",
+        year: "numeric",
+        month: "numeric",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: true,
+      }),
+    }));
+
+    res.status(200).json({
+      success: true,
+      coupons: productsWithBDTime,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: "Server Error" });
+  }
+});
+
 
 // UPDATE imagesHash by product id
 router.patch("/:id/images-hash", async (req, res) => {
@@ -1122,7 +1154,7 @@ router.get("/productsdata", async (req, res) => {
 router.get("/latestproduct", async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 16;
+    const limit = parseInt(req.query.limit) || 12;
     const skip = (page - 1) * limit;
 
     res.writeHead(200, {
@@ -1681,16 +1713,34 @@ router.get("/topselling", async (req, res) => {
 });
 
 // ✅ READ SINGLE PRODUCT
+// router.get("/:id", async (req, res) => {
+//   try {
+//     const product = await Product.findById(req.params.id);
+//     if (!product) return res.status(404).json({ error: "Product not found" });
+//     res.json(product);
+//   } catch (error) {
+//     res.status(400).json({ error: error.message });
+//   }
+// });
 router.get("/:id", async (req, res) => {
   try {
-    const product = await Product.findById(req.params.id);
+    const product = await Product.findById(req.params.id).lean();
     if (!product) return res.status(404).json({ error: "Product not found" });
-    res.json(product);
+
+    // ✅ childcategoryName দিয়ে author match
+    const matchedAuthor = await Author.findOne({
+      name: product.childcategoryName?.trim()
+    }).lean() || null;
+
+    res.json({
+      ...product,
+      author: matchedAuthor,
+    });
+
   } catch (error) {
     res.status(400).json({ error: error.message });
   }
 });
-
 
 router.get("/slug/:slug", async (req, res) => {
   try {

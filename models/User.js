@@ -21,7 +21,10 @@ const userDataSchema = new mongoose.Schema(
     displayName: { type: String, required: true },
     referralCode: { type: String },
      phoneNumber: { type: String, sparse: true },  // ✅ এটা add করো
-    email: { type: String, sparse: true }, 
+   email: {
+  type: String,
+  default: ""
+},
      myrefferalcode: { type: String, unique: true, sparse: true },
     status: { type: String, default: "active" },
     birthday: { type: String },        // ✅ add
