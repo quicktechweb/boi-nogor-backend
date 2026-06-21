@@ -9,6 +9,7 @@ import FormData from "form-data";
 import slugify from "slugify";
 import  sharp from "sharp";
 import Author from "../models/AddAuthor.js";
+import ChildCategory from "../models/ChildCategory.js";
 
 // import { promises as fsPromises } from "fs";
 
@@ -1082,7 +1083,7 @@ router.get("/filterapidata", async (req, res) => {
 
 router.get("/productsdata", async (req, res) => {
   try {
-    const { category, subcategory, child, brand, title, page = 1, limit = 20 } = req.query;
+    const { category, subcategory, child, brand, title, page = 1, limit = 16 } = req.query;
 
     const filter = {};
 
@@ -1101,7 +1102,7 @@ router.get("/productsdata", async (req, res) => {
     const [products, total, allAuthors] = await Promise.all([
       Product.find(filter).sort({ createdAt: -1 }).skip(skip).limit(Number(limit)).lean(),
       Product.countDocuments(filter),
-      Author.find().lean(), // ✅ একবারেই সব author load
+      ChildCategory.find({ isAuthor: true }).lean(),
     ]);
 
     const productsWithStats = await Promise.all(
@@ -1112,25 +1113,43 @@ router.get("/productsdata", async (req, res) => {
           ? Math.max(...coupons.map(c => c.round || 1))
           : 1;
 
-        let sold = coupons
-          .filter(c => c.round === latestRound)
-          .reduce((sum, c) => sum + (c.quantity || 0), 0);
-
-        const totalcupon = product.totalcupon || 0;
-        if (sold >= totalcupon) sold = totalcupon;
-
-        const remaining = Math.max(totalcupon - sold, 0);
-        const progress = totalcupon > 0 ? (sold / totalcupon) * 100 : 0;
-
-        // ✅ childcategoryName দিয়ে author match
+        // ✅ childcategoryName দিয়ে author (ChildCategory) match
         const matchedAuthor = allAuthors.find(
           a => a.name?.trim() === product.childcategoryName?.trim()
         ) || null;
 
+        // ⭐ পুরো object + image map + followers/followedBy fallback সহ guaranteed
+        const normalizedAuthor = matchedAuthor
+          ? {
+              ...matchedAuthor,
+              image: matchedAuthor.childCategoryImg,
+              followers: matchedAuthor.followers ?? 0,
+              followedBy: matchedAuthor.followedBy ?? [],
+            }
+          : null;
+
+        // ⭐ অপ্রয়োজনীয় field গুলো বাদ দিয়ে বাকি product data রাখা হচ্ছে
+        const {
+          promoCode,
+          promoType,
+          promoValue,
+          promoStartDate,
+          promoEndDate,
+          allProductPromoCode,
+          allProductPromoType,
+          allProductPromoValue,
+          allProductPromoStartDate,
+          allProductPromoEndDate,
+          campaignId,
+          campaignName,
+          campaignImg,
+          userHighestBuyCoupon,
+          ...cleanProduct
+        } = product;
+
         return {
-          ...product,
-          author: matchedAuthor,
-          
+          ...cleanProduct,
+          author: normalizedAuthor,
         };
       })
     );
@@ -1150,6 +1169,7 @@ router.get("/productsdata", async (req, res) => {
     res.status(500).json({ message: "Server Error" });
   }
 });
+
 
 router.get("/latestproduct", async (req, res) => {
   try {
@@ -1727,9 +1747,10 @@ router.get("/:id", async (req, res) => {
     const product = await Product.findById(req.params.id).lean();
     if (!product) return res.status(404).json({ error: "Product not found" });
 
-    // ✅ childcategoryName দিয়ে author match
-    const matchedAuthor = await Author.findOne({
-      name: product.childcategoryName?.trim()
+    // ✅ ChildCategory থেকে author match
+    const matchedAuthor = await ChildCategory.findOne({
+      name: product.childcategoryName?.trim(),
+      isAuthor: true,
     }).lean() || null;
 
     res.json({
