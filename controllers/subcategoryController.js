@@ -5,9 +5,9 @@ export const createSubcategory = async (req, res) => {
   try {
     const { name, categoryName, status, subcategoryImg } = req.body;
 
-    if (!subcategoryImg) {
-      return res.status(400).json({ message: "Subcategory image is required" });
-    }
+    // if (!subcategoryImg) {
+    //   return res.status(400).json({ message: "Subcategory image is required" });
+    // }
 
     const newSub = new Subcategory({ name, categoryName, status, subcategoryImg });
     await newSub.save();
@@ -17,7 +17,7 @@ export const createSubcategory = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
-
+// gggg 
 // Read
 export const getSubcategories = async (req, res) => {
   try {

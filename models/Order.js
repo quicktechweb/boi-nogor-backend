@@ -25,6 +25,7 @@ const OrderSchema = new mongoose.Schema(
     subcategoryName: { type: String, default: null },
     childcategoryName: { type: String, default: null },
     brandName: { type: String, default: null },
+       titleBn: { type: String, default: "" },
         selectedSize: { type: String, default: null },
         selectedColor: { type: String, default: null },
       },

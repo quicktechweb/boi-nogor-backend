@@ -526,51 +526,44 @@ router.get("/details/:id", async (req, res) => {
 
 router.get("/", async (req, res) => {
   try {
-    res.writeHead(200, {
-      "Content-Type": "application/json",
-      "Transfer-Encoding": "chunked",
-    });
-
-    res.write("[");
-    let first = true;
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 16;
+    const skip = (page - 1) * limit;
 
     // ✅ সব author একবারে load করো — per product query না
     const allAuthors = await Author.find().lean();
 
-    const cursor = Product.find().sort({ createdAt: -1 }).lean().cursor();
+    const [totalProducts, products] = await Promise.all([
+      Product.countDocuments(),
+      Product.find()
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+    ]);
 
-    for (let product = await cursor.next(); product != null; product = await cursor.next()) {
-      if (!first) res.write(",");
-      first = false;
+    // ✅ childcategoryName দিয়ে author match
+    const data = products.map((product) => {
+      const matchedAuthor =
+        allAuthors.find(
+          (a) => a.name?.trim() === product.childcategoryName?.trim()
+        ) || null;
 
-      // 🔥 Coupon stats
-      const coupons = await CouponPurchase.find({ productId: product._id }).lean();
-      const latestRound = coupons.length
-        ? Math.max(...coupons.map(c => c.round || 1))
-        : 1;
-      let sold = coupons.filter(c => c.round === latestRound).length;
-      const totalcupon = product.totalcupon || 0;
-      if (sold >= totalcupon) sold = 0;
-      const remaining = Math.max(totalcupon - sold, 0);
-      const progress = totalcupon > 0 ? (sold / totalcupon) * 100 : 0;
-
-      // ✅ childcategoryName দিয়ে author match
-      const matchedAuthor = allAuthors.find(
-        a => a.name?.trim() === product.childcategoryName?.trim()
-      ) || null;
-
-      const responseDoc = {
+      return {
         ...product,
         author: matchedAuthor, // match না হলে null
-      
       };
+    });
 
-      res.write(JSON.stringify(responseDoc));
-    }
+    const isLastPage = skip + data.length >= totalProducts;
 
-    res.write("]");
-    res.end();
-
+    res.status(200).json({
+      page,
+      limit,
+      total: totalProducts,
+      isLastPage,
+      data,
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Server Error" });
@@ -755,7 +748,6 @@ router.get("/mobilechildcategoryset", async (req, res) => {
 // routes/products.js
 router.get("/filterapidata", async (req, res) => {
   try {
-    // 🔹 Fast response with JSON stream
     res.writeHead(200, {
       "Content-Type": "application/json",
       "Transfer-Encoding": "chunked",
@@ -764,10 +756,9 @@ router.get("/filterapidata", async (req, res) => {
     res.write("[");
     let first = true;
 
-    // 🔹 Only fetch required fields
     const cursor = Product.find()
       .sort({ createdAt: -1 })
-      .select("title categoryName categoryImg subcategoryName subcategoryImg childcategoryName childcategoryImg brandName brandImg createdAt")
+      .select("title categoryName categoryImg subcategoryName subcategoryImg childcategoryName titleBn childcategoryImg brandName brandImg createdAt images ProductPrice oldPrice")
       .lean()
       .cursor();
 
@@ -775,10 +766,10 @@ router.get("/filterapidata", async (req, res) => {
       if (!first) res.write(",");
       first = false;
 
-      // 🔹 Construct response
       const responseDoc = {
         _id: product._id,
         title: product.title,
+        image: Array.isArray(product.images) && product.images.length > 0 ? product.images[0] : null, // 🔹 শুধু প্রথম image
         categoryName: product.categoryName,
         categoryImg: product.categoryImg,
         subcategoryName: product.subcategoryName,
@@ -786,8 +777,11 @@ router.get("/filterapidata", async (req, res) => {
         childcategoryName: product.childcategoryName,
         childcategoryImg: product.childcategoryImg,
         brandName: product.brandName,
+        titleBn: product.titleBn,
         brandImg: product.brandImg,
         createdAt: product.createdAt,
+        ProductPrice: product.ProductPrice,
+        oldPrice: product.oldPrice,
       };
 
       res.write(JSON.stringify(responseDoc));
@@ -1083,7 +1077,7 @@ router.get("/filterapidata", async (req, res) => {
 
 router.get("/productsdata", async (req, res) => {
   try {
-    const { category, subcategory, child, brand, title, page = 1, limit = 16 } = req.query;
+    const { category, subcategory, child, brand,translator, publisher, title, page = 1, limit = 16 } = req.query;
 
     const filter = {};
 
@@ -1091,6 +1085,9 @@ router.get("/productsdata", async (req, res) => {
     if (subcategory) filter.subcategoryName = { $regex: subcategory.trim(), $options: "i" };
     if (child) filter.childcategoryName = { $regex: child.trim(), $options: "i" };
     if (brand) filter.brandName = { $regex: brand.trim(), $options: "i" };
+
+    if (translator) filter.translator = { $regex: translator.trim(), $options: "i" };
+if (publisher)  filter.brandName  = { $regex: publisher.trim(),  $options: "i" };
 
     if (title) {
       const words = title.replace(/-/g, " ").trim().split(/\s+/).filter(Boolean);
@@ -1150,6 +1147,8 @@ router.get("/productsdata", async (req, res) => {
         return {
           ...cleanProduct,
           author: normalizedAuthor,
+          translator: product.translator || "",       // ✅ already আছে string হিসেবে
+  publisher: product.brandName || "",  
         };
       })
     );
@@ -1170,141 +1169,39 @@ router.get("/productsdata", async (req, res) => {
   }
 });
 
-
 router.get("/latestproduct", async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 12;
     const skip = (page - 1) * limit;
 
-    res.writeHead(200, {
-      "Content-Type": "application/json",
-      "Transfer-Encoding": "chunked",
-    });
-
-    res.write("[");
-    let first = true;
-
-    const cursor = Product.find()
+    const products = await Product.find()
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit)
-      .lean()
-      .cursor();
+      .lean();
 
-    for (
-      let product = await cursor.next();
-      product != null;
-      product = await cursor.next()
-    ) {
-      if (!first) res.write(",");
-      first = false;
-
-      const coupons = await CouponPurchase.find({
-        productId: product._id,
-      }).lean();
-
-      const latestRound = coupons.length
-        ? Math.max(...coupons.map((c) => c.round || 1))
-        : 1;
-
-      let sold = coupons.filter((c) => c.round === latestRound).length;
-      const totalcupon = product.totalcupon || 0;
-
-      if (sold >= totalcupon) sold = 0;
-
-      const remaining = Math.max(totalcupon - sold, 0);
-      const progress = totalcupon
-        ? Number(((sold / totalcupon) * 100).toFixed(2))
-        : 0;
-
-      res.write(
-        JSON.stringify({
-          ...product,
-          stats: {
-            sold,
-            totalcupon,
-            remaining,
-            latestRound,
-            progress,
-          },
-        })
-      );
-    }
-
-    res.write("]");
-    res.end();
+    res.status(200).json(products);
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Server Error" });
   }
 });
 
+
 router.get("/topsellings", async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 2; // 🔥 default 40
+    const limit = parseInt(req.query.limit) || 20;
     const skip = (page - 1) * limit;
 
-    res.writeHead(200, {
-      "Content-Type": "application/json",
-      "Transfer-Encoding": "chunked",
-    });
-
-    res.write("[");
-    let first = true;
-
-    const cursor = Product.find({ type: "topselling" })
+    const products = await Product.find({ type: "topselling" })
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit)
-      .lean()
-      .cursor();
+      .lean();
 
-    for (
-      let product = await cursor.next();
-      product != null;
-      product = await cursor.next()
-    ) {
-      if (!first) res.write(",");
-      first = false;
-
-      const coupons = await CouponPurchase.find({
-        productId: product._id,
-      }).lean();
-
-      const latestRound = coupons.length
-        ? Math.max(...coupons.map((c) => c.round || 1))
-        : 1;
-
-      let sold = coupons.filter(
-        (c) => c.round === latestRound
-      ).length;
-
-      const totalcupon = product.totalcupon || 0;
-      if (sold >= totalcupon) sold = 0;
-
-      const remaining = Math.max(totalcupon - sold, 0);
-      const progress = totalcupon
-        ? Number(((sold / totalcupon) * 100).toFixed(2))
-        : 0;
-
-      res.write(
-        JSON.stringify({
-          ...product,
-          stats: {
-            sold,
-            totalcupon,
-            remaining,
-            latestRound,
-            progress,
-          },
-        })
-      );
-    }
-
-    res.write("]");
-    res.end();
+    res.status(200).json(products);
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Server Error" });

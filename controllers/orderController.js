@@ -540,50 +540,49 @@ export const getWeeklyTopOrderspart = async (req, res) => {
     const sampleOrder = await Order.findOne({ "products.0": { $exists: true } }).lean();
     console.log("Order products[0]:", JSON.stringify(sampleOrder?.products?.[0], null, 2));
 
-    const pipeline = (matchStage) => [
-      { $match: matchStage },
-      { $unwind: "$products" },
-      {
-        $group: {
-          _id:           "$products.title",
-          // 🔥 product _id capture korlam — productId field thakle oita, na thakle products._id
-          productId: {
-            $first: {
-              $ifNull: ["$products.productId", "$products._id"]
-            }
-          },
-          totalQuantity: { $sum: { $ifNull: ["$products.quantity", 1] } },
-          totalRevenue:  { $sum: { $ifNull: ["$products.ProductPrice", 0] } },
-          img: {
-            $first: {
-              $ifNull: [
-                { $arrayElemAt: ["$products.images", 0] },
-                "$products.image",
-                "$products.img",
-                { $arrayElemAt: ["$products.subcategoryImg", 0] },
-                "$products.subcategoryImg",
-                "$products.categoryImg",
-              ]
-            }
-          },
-          ProductPrice:  { $first: "$products.ProductPrice" },
-          orderCount:    { $sum: 1 },
-        },
+   const pipeline = (matchStage) => [
+  { $match: matchStage },
+  { $unwind: "$products" },
+  {
+    $group: {
+      _id: "$products.title",  // শুধু title দিয়ে group করো
+      titleBn: { $max: "$products.titleBn" },  // ✅ $max — null বাদ দিয়ে value নেবে
+      productId: {
+        $first: {
+          $ifNull: ["$products.productId", "$products._id"]
+        }
       },
-      { $sort: { totalQuantity: -1 } },
-      { $limit: 10 },
-      {
-        $project: {
-          _id:           { $toString: "$productId" }, // 🔥 product _id output e dilam
-          title:         "$_id",
-          totalQuantity: 1,
-          totalRevenue:  1,
-          images:        ["$img"],
-          ProductPrice:  1,
-          orderCount:    1,
-        },
+      totalQuantity: { $sum: { $ifNull: ["$products.quantity", 1] } },
+      totalRevenue:  { $sum: { $ifNull: ["$products.ProductPrice", 0] } },
+      img: {
+        $first: {
+          $ifNull: [
+            "$products.img",
+            { $arrayElemAt: ["$products.images", 0] },
+            "$products.image",
+            "$products.categoryImg",
+          ]
+        }
       },
-    ];
+      ProductPrice: { $first: "$products.ProductPrice" },
+      orderCount:   { $sum: 1 },
+    },
+  },
+  { $sort: { totalQuantity: -1 } },
+  { $limit: 10 },
+  {
+    $project: {
+      _id:           { $toString: "$productId" },
+      title:         "$_id",
+      titleBn:       1,  // ✅ সরাসরি আসবে
+      totalQuantity: 1,
+      totalRevenue:  1,
+      images:        ["$img"],
+      ProductPrice:  1,
+      orderCount:    1,
+    },
+  },
+];
 
     const now       = new Date();
     const dayOfWeek = now.getUTCDay();
@@ -642,7 +641,6 @@ export const getWeeklyTopOrderspart = async (req, res) => {
   }
 };
 
-
 export const getRecentlySoldProducts = async (req, res) => {
   try {
     const topOrders = await Order.aggregate([
@@ -656,23 +654,25 @@ export const getRecentlySoldProducts = async (req, res) => {
       {
         $group: {
           _id: "$products.title",
-          productId: { $first: "$products._id" },
-          img: { $first: "$products.img" },
-          ProductPrice: { $first: "$products.ProductPrice" },
+          productId:     { $first: "$products._id" },
+          titleBn:       { $max: "$products.titleBn" }, // ✅
+          img:           { $first: "$products.img" },
+          ProductPrice:  { $first: "$products.ProductPrice" },
           totalQuantity: { $sum: "$products.quantity" },
-          lastSoldAt: { $first: "$createdAt" },
+          lastSoldAt:    { $first: "$createdAt" },
         },
       },
       { $sort: { lastSoldAt: -1 } },
       { $limit: 20 },
       {
         $project: {
-          _id: "$productId",
-          title: "$_id",
-          images: ["$img"],  // ← single img কে array এ wrap করো
-          ProductPrice: 1,
+          _id:           "$productId",
+          title:         "$_id",
+          titleBn:       1, // ✅
+          images:        ["$img"],
+          ProductPrice:  1,
           totalQuantity: 1,
-          lastSoldAt: 1,
+          lastSoldAt:    1,
         },
       },
     ]);
