@@ -10,6 +10,8 @@ import slugify from "slugify";
 import  sharp from "sharp";
 import Author from "../models/AddAuthor.js";
 import ChildCategory from "../models/ChildCategory.js";
+import Order from "../models/Order.js";
+
 
 // import { promises as fsPromises } from "fs";
 
@@ -569,6 +571,36 @@ router.get("/", async (req, res) => {
     res.status(500).json({ message: "Server Error" });
   }
 });
+
+
+ // GET /api/products/low-stock
+// এই route টা সেই প্রোডাক্টগুলো রিটার্ন করে যাদের Stock Status
+// "Not Available" সেট করা আছে। এটাই আসল "low stock / stock warning" list।
+
+router.get("/low-stock", async (req, res) => {
+  try {
+    // শুধু দরকারি ফিল্ড টেনে আনছি, পুরো ডকুমেন্ট না — দ্রুত হবে
+    const notAvailableProducts = await Product.find(
+      { stock: "Not Available" },
+      {
+        title: 1,
+        categoryName: 1,
+        ProductPrice: 1,
+        productPrice: 1,
+        stock: 1,
+      }
+    ).lean();
+
+    res.status(200).json({
+      total: notAvailableProducts.length,
+      data: notAvailableProducts,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server Error" });
+  }
+});
+
 
 router.get("/purchaselist", async (req, res) => {
   try {

@@ -52,6 +52,7 @@ numberOfPages: { type: Number, default: null },
     categoryImg: { type: String, default: "" }, 
     subcategoryImg: { type: String, default: "" }, 
     childcategoryImg: { type: String, default: "" }, 
+    translatorImg: { type: String, default: "" }, 
     save: String,
     type: { type: String, default: "" },     
      bulletPoints: {

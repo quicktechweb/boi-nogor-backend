@@ -54,6 +54,7 @@ import adminBadgeRoutes from "./routes/adminBadge.js";
 import authorRoutes from "./routes/AddAuthor.js";
 import roleRoutes from "./routes/roles.js";
 import salecategoryroute from "./routes/salecategoryRoute.js";
+import translatorRoute from "./routes/translatorRoutes.js";
 import gtmRoutes from "./routes/gtmRoutes.js";
 
 // dotenv.config();
@@ -116,6 +117,7 @@ app.use("/api/departments", departmentRoutes);
 app.use("/api/settings", gtmRoutes);
 app.use("/api/authors", authorRoutes);
 app.use("/api/salecategory", salecategoryroute);
+app.use("/api/translator", translatorRoute);
 // new part 
 app.get("/envtest", (req, res) => {
   res.json({
