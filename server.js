@@ -56,6 +56,7 @@ import roleRoutes from "./routes/roles.js";
 import salecategoryroute from "./routes/salecategoryRoute.js";
 import translatorRoute from "./routes/translatorRoutes.js";
 import gtmRoutes from "./routes/gtmRoutes.js";
+import carrybeeRoutes from "./routes/carrybeeRoute.js";
 
 // dotenv.config();
 // CommonJS style JSON load
@@ -118,6 +119,7 @@ app.use("/api/settings", gtmRoutes);
 app.use("/api/authors", authorRoutes);
 app.use("/api/salecategory", salecategoryroute);
 app.use("/api/translator", translatorRoute);
+app.use("/api/carrybee", carrybeeRoutes);
 // new part 
 app.get("/envtest", (req, res) => {
   res.json({

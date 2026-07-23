@@ -83,3 +83,6 @@ employeeSchema.pre("save", async function (next) {
 
 const Employee = mongoose.model("Employee", employeeSchema, "employees");
 export default Employee;
+
+
+
